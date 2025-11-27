@@ -100,8 +100,25 @@ This guide is specifically optimized for **Ubuntu 24.04 LTS (Noble Numbat)**. Ke
 - ✅ **Enhanced security** - AppArmor profiles enabled by default
 - ✅ **Kernel 6.8** - Better hardware support and performance
 - ✅ **Updated package repositories** - Latest versions of all tools
+- ⚠️ **SSH service name** - Use `ssh` not `sshd` (e.g., `systemctl restart ssh`)
 
 **Migration from older Ubuntu versions?** This guide handles all breaking changes automatically.
+
+### Important Service Name Change
+
+**Ubuntu 24.04 uses `ssh` as the service name (not `sshd`):**
+
+```bash
+# ✅ CORRECT for Ubuntu 24.04
+sudo systemctl restart ssh
+sudo systemctl status ssh
+sudo systemctl enable ssh
+
+# ❌ WRONG - This will fail
+sudo systemctl restart sshd
+```
+
+**Note:** The config file is still `/etc/ssh/sshd_config` and the test command is still `sudo sshd -t`.
 
 ---
 
@@ -162,7 +179,7 @@ sudo certbot --nginx -d your-domain.com
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         🌐 Internet                              │
+│                         🌐 Internet                             │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │
                     ┌───────────▼──────────┐
@@ -175,7 +192,7 @@ sudo certbot --nginx -d your-domain.com
                     │   Ports: 22,80,443   │
                     └───────────┬──────────┘
                                 │
-                    ┌───────────▼──────────────────────┐
+                    ┌───────────▼─────────────────────┐
                     │   🌐 Nginx Reverse Proxy        │
                     │   - SSL/TLS Termination         │
                     │   - Load Balancing              │
@@ -195,7 +212,7 @@ sudo certbot --nginx -d your-domain.com
                     │  🔌 localhost:27017     │
                     │  🐳 Docker Network      │
                     ├─────────────────────────┤
-                    │  🗄️ MongoDB            │
+                    │  🗄️ MongoDB             │
                     │  📨 RabbitMQ           │
                     └─────────────────────────┘
                              │
@@ -458,8 +475,8 @@ LoginGraceTime 60
 **Test SSH restart WITHOUT logging out:**
 
 ```bash
-# Restart SSH service
-sudo systemctl restart sshd
+# Restart SSH service (Ubuntu 24.04 uses 'ssh' not 'sshd')
+sudo systemctl restart ssh
 
 # Open a NEW terminal window (don't close current one!)
 # Try to connect from new window (replace YOUR_SERVER_IP):
@@ -487,8 +504,8 @@ PermitRootLogin no
 # Test the change
 sudo sshd -t
 
-# If test passes, restart SSH
-sudo systemctl restart sshd
+# If test passes, restart SSH (Ubuntu 24.04 uses 'ssh' not 'sshd')
+sudo systemctl restart ssh
 
 # Keep your current session open!
 # Open NEW terminal and test (replace YOUR_SERVER_IP):
@@ -511,7 +528,7 @@ PasswordAuthentication no
 
 # Save, test, and restart
 sudo sshd -t
-sudo systemctl restart sshd
+sudo systemctl restart ssh
 
 # Test from NEW terminal before closing current one!
 ```
