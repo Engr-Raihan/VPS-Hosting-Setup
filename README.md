@@ -1588,6 +1588,406 @@ sudo apt clean
 
 ---
 
+---
+
+## 🔐 Creating Restricted Service Users (Optional)
+
+### Use Case: Give team members access to ONLY their specific service
+
+If you want to allow someone (e.g., manager, developer) to manage only ONE service without access to others:
+
+### Step 1: Create Restricted User
+
+```bash
+# Create user for attendance-system manager
+sudo adduser attendance-admin
+
+# Set password (they'll use this for SSH initially)
+sudo passwd attendance-admin
+
+# DO NOT add to sudo group (no admin privileges)
+```
+
+### Step 2: Setup SSH Keys for New User
+
+**On manager's local machine:**
+
+```bash
+# Generate SSH key
+ssh-keygen -t ed25519 -C "manager@company.com"
+# Save as: ~/.ssh/id_ed25519_attendance
+
+# Copy public key
+cat ~/.ssh/id_ed25519_attendance.pub
+```
+
+**On VPS (as appadmin):**
+
+```bash
+# Switch to new user
+sudo su - attendance-admin
+
+# Create SSH directory
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+
+# Add manager's public key
+nano ~/.ssh/authorized_keys
+# Paste the public key, save and exit
+
+# Set permissions
+chmod 600 ~/.ssh/authorized_keys
+
+# Exit back to appadmin
+exit
+```
+
+### Step 3: Setup Service Directory Permissions
+
+```bash
+# Create service directory if not exists
+sudo mkdir -p /opt/apps/attendance-system
+sudo mkdir -p /var/log/apps/attendance-system
+
+# Give ownership to restricted user
+sudo chown -R attendance-admin:attendance-admin /opt/apps/attendance-system
+sudo chown -R attendance-admin:attendance-admin /var/log/apps/attendance-system
+
+# Verify permissions
+ls -la /opt/apps/ | grep attendance
+```
+
+### Step 4: Configure PM2 for Restricted User
+
+**Option A: Separate PM2 instance for this user (Recommended)**
+
+```bash
+# As attendance-admin user
+sudo su - attendance-admin
+
+# Install PM2 for this user
+npm install -g pm2
+
+# Create ecosystem file for this service only
+cd /opt/apps/attendance-system
+nano ecosystem.config.js
+```
+
+**ecosystem.config.js (for attendance-admin user):**
+
+```javascript
+module.exports = {
+  apps: [
+    {
+      name: 'attendance-system',
+      cwd: '/opt/apps/attendance-system',
+      script: './dist/main.js',
+      instances: 2,
+      exec_mode: 'cluster',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '500M',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3010,
+      },
+      error_file: '/var/log/apps/attendance-system/pm2-error.log',
+      out_file: '/var/log/apps/attendance-system/pm2-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+    },
+  ],
+};
+```
+
+```bash
+# Setup PM2 startup for attendance-admin user
+pm2 startup systemd -u attendance-admin --hp /home/attendance-admin
+
+# Start the service
+pm2 start ecosystem.config.js
+pm2 save
+
+# Exit back to appadmin
+exit
+```
+
+**Option B: Allow restart of specific PM2 service via sudo (Simpler)**
+
+```bash
+# As appadmin, configure sudo permissions
+sudo visudo -f /etc/sudoers.d/attendance-admin
+```
+
+**Add these lines:**
+
+```bash
+# Allow attendance-admin to restart ONLY their service
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 restart attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 reload attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 logs attendance-system*
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 status
+
+# Prevent all other sudo commands
+attendance-admin ALL=(ALL) !ALL
+```
+
+### Step 5: Setup Git Access
+
+```bash
+# As attendance-admin
+sudo su - attendance-admin
+
+# Generate SSH key for GitHub/GitLab
+ssh-keygen -t ed25519 -C "attendance-admin@yourcompany.com" -f ~/.ssh/github_key
+
+# Display public key (add to GitHub/GitLab)
+cat ~/.ssh/github_key.pub
+
+# Configure Git
+git config --global user.name "Attendance Admin"
+git config --global user.email "manager@yourcompany.com"
+
+# Setup SSH config for Git
+nano ~/.ssh/config
+```
+
+**Add:**
+
+```
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/github_key
+```
+
+```bash
+chmod 600 ~/.ssh/config
+
+# Test Git access
+cd /opt/apps/attendance-system
+git remote -v
+git pull
+
+exit
+```
+
+### Step 6: Create Helper Scripts for Manager
+
+```bash
+# As appadmin, create helper scripts
+sudo nano /home/attendance-admin/update-service.sh
+```
+
+**update-service.sh:**
+
+```bash
+#!/bin/bash
+
+echo "🔄 Updating Attendance System..."
+
+cd /opt/apps/attendance-system
+
+# Pull latest code
+echo "📥 Pulling latest code from Git..."
+git pull origin main
+
+if [ $? -ne 0 ]; then
+    echo "❌ Git pull failed!"
+    exit 1
+fi
+
+# Install dependencies
+echo "📦 Installing dependencies..."
+npm ci --production=false
+
+# Build
+echo "🔨 Building application..."
+npm run build
+
+if [ $? -ne 0 ]; then
+    echo "❌ Build failed!"
+    exit 1
+fi
+
+# Install production dependencies only
+echo "🎯 Installing production dependencies..."
+rm -rf node_modules
+npm ci --production
+
+# Restart with PM2
+echo "🔄 Restarting service..."
+if [ -f "ecosystem.config.js" ]; then
+    # Option A: Own PM2 instance
+    pm2 reload ecosystem.config.js --only attendance-system
+else
+    # Option B: Via sudo to appadmin's PM2
+    sudo -u appadmin pm2 reload attendance-system
+fi
+
+echo "✅ Attendance System updated successfully!"
+pm2 logs attendance-system --lines 20
+```
+
+**restart-service.sh:**
+
+```bash
+#!/bin/bash
+
+echo "🔄 Restarting Attendance System..."
+
+if [ -f "/opt/apps/attendance-system/ecosystem.config.js" ]; then
+    # Option A: Own PM2 instance
+    pm2 reload attendance-system
+else
+    # Option B: Via sudo to appadmin's PM2
+    sudo -u appadmin pm2 reload attendance-system
+fi
+
+echo "✅ Service restarted!"
+pm2 logs attendance-system --lines 20
+```
+
+**view-logs.sh:**
+
+```bash
+#!/bin/bash
+
+echo "📋 Viewing Attendance System Logs..."
+echo "Press Ctrl+C to exit"
+echo ""
+
+if [ -f "/opt/apps/attendance-system/ecosystem.config.js" ]; then
+    pm2 logs attendance-system
+else
+    sudo -u appadmin pm2 logs attendance-system
+fi
+```
+
+```bash
+# Make scripts executable
+sudo chmod +x /home/attendance-admin/*.sh
+sudo chown attendance-admin:attendance-admin /home/attendance-admin/*.sh
+```
+
+### Step 7: Restrict SSH Access (Optional but Recommended)
+
+```bash
+# Edit SSH config
+sudo nano /etc/ssh/sshd_config
+```
+
+**Add at the bottom:**
+
+```bash
+# Restrict attendance-admin user
+Match User attendance-admin
+    # Restrict to specific directory
+    ChrootDirectory none
+    # Allow only specific commands (if using forced commands)
+    ForceCommand /bin/bash --restricted
+    # Disable port forwarding
+    AllowTcpForwarding no
+    X11Forwarding no
+    # Disable agent forwarding
+    AllowAgentForwarding no
+    # Allow only these specific things
+    PermitTTY yes
+```
+
+```bash
+# Test config
+sudo sshd -t
+
+# Restart SSH
+sudo systemctl restart ssh
+```
+
+### Step 8: Test Restricted Access
+
+**From manager's machine:**
+
+```bash
+# Test SSH connection
+ssh -i ~/.ssh/id_ed25519_attendance attendance-admin@YOUR_SERVER_IP
+
+# Once connected, test allowed operations:
+
+# ✅ Should work:
+cd /opt/apps/attendance-system
+ls -la
+git pull
+~/update-service.sh
+~/restart-service.sh
+~/view-logs.sh
+
+# ❌ Should NOT work (no access):
+cd /opt/apps/auth-service  # Permission denied
+cd /opt/apps/order-service  # Permission denied
+sudo apt update  # Not allowed
+pm2 restart auth-service  # Not allowed
+```
+
+### What Manager CAN Do:
+
+✅ **SSH into the server** (with their key)
+✅ **Access `/opt/apps/attendance-system/`** (their service only)
+✅ **Git pull** (update code from repository)
+✅ **Install dependencies** (npm install in their directory)
+✅ **Build the application** (npm run build)
+✅ **Restart their service** (PM2 reload via script)
+✅ **View logs** (PM2 logs for their service)
+✅ **Edit .env file** (in their service directory)
+✅ **View service status** (PM2 status)
+
+### What Manager CANNOT Do:
+
+❌ **Access other services** (no permission)
+❌ **Modify other services** (no access)
+❌ **Install system packages** (no sudo access)
+❌ **Change system configuration** (no sudo)
+❌ **Access database directly** (no MongoDB admin)
+❌ **View other service logs** (no permission)
+❌ **Restart other services** (PM2 restricted)
+❌ **Modify Nginx configs** (no access)
+
+---
+
+## 📋 Manager Access Summary
+
+**Connection:**
+```bash
+ssh attendance-admin@YOUR_SERVER_IP
+```
+
+**Daily Operations:**
+```bash
+# Update service (pull + build + restart)
+~/update-service.sh
+
+# Quick restart
+~/restart-service.sh
+
+# View logs
+~/view-logs.sh
+
+# Manual operations
+cd /opt/apps/attendance-system
+git pull
+npm ci && npm run build
+pm2 reload attendance-system
+```
+
+**Security Benefits:**
+- ✅ Manager has access only to their service
+- ✅ Cannot break other services
+- ✅ Cannot access sensitive system files
+- ✅ Cannot modify database directly
+- ✅ All actions are logged
+- ✅ Can be revoked anytime by deleting user
+
+---
+
 **Setup Complete! 🎉**
 
 Your VPS is ready for development. Remember to keep your system updated and monitor logs regularly.

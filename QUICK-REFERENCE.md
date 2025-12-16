@@ -259,4 +259,44 @@ Custom Ports:
 
 ---
 
+---
+
+## 👥 Restricted Service Users
+
+**Give team members access to ONLY their specific service:**
+
+```bash
+# Create restricted user (example: attendance-admin)
+sudo adduser attendance-admin  # No sudo group!
+
+# Setup directories
+sudo mkdir -p /opt/apps/attendance-system
+sudo chown -R attendance-admin:attendance-admin /opt/apps/attendance-system
+
+# Configure limited sudo access
+sudo visudo -f /etc/sudoers.d/attendance-admin
+```
+
+**Allow only PM2 commands for their service:**
+```
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 restart attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 reload attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 logs attendance-system*
+```
+
+**Manager commands:**
+```bash
+# Update service
+cd /opt/apps/attendance-system
+git pull && npm ci && npm run build
+sudo -u appadmin pm2 reload attendance-system
+
+# View logs
+sudo -u appadmin pm2 logs attendance-system
+```
+
+📖 **Full guide:** See README.md "Creating Restricted Service Users"
+
+---
+
 **💾 Bookmark this for quick access!**
