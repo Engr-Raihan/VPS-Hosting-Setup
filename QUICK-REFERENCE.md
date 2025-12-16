@@ -2,6 +2,8 @@
 
 Essential commands for VPS management.
 
+**Note:** We use PM2 for Node.js microservices (efficient, low overhead) and Docker only for databases (MongoDB, RabbitMQ).
+
 ---
 
 ## 🔑 SSH Connection
@@ -34,13 +36,34 @@ pm2 flush                           # Clear logs
 
 ## 🐳 Docker Commands
 
+**Note:** Docker runs MongoDB/RabbitMQ (shared by all microservices). Microservices run via PM2.
+
 ```bash
 docker ps                           # Running containers
 docker logs mongodb                 # View logs
 docker restart mongodb              # Restart
 docker stats                        # Resource usage
-cd /opt/databases && docker compose up -d  # Start all
-docker compose down                 # Stop all
+
+# Start all databases
+cd /opt/databases && docker compose up -d
+
+# Stop all databases (WARNING: stops all microservices' DB access!)
+docker compose down
+
+# Connect to MongoDB (serves all microservices)
+docker exec -it mongodb mongosh -u admin -p
+
+# View all databases (shared + isolated)
+docker exec -it mongodb mongosh -u admin -p --eval "show dbs"
+
+# Check which services use which database
+docker exec -it mongodb mongosh -u admin -p --eval "
+  use core_shared_db;
+  print('Shared DB for Auth/User/Profile');
+  use order_service_db;
+  print('Isolated DB for Order Service');
+"
+
 docker system prune -a              # Clean up
 ```
 
@@ -100,6 +123,38 @@ sudo lsof -i :3001                  # What's using port
 /var/log/apps/                # App logs
 /var/log/nginx/               # Nginx logs
 /etc/nginx/sites-available/   # Nginx configs
+```
+
+---
+
+## 🗄️ Database Architecture Patterns
+
+### Your Setup (Hybrid):
+
+```
+One MongoDB Container:
+├─ core_shared_db (Auth, User, Profile share this)
+├─ order_service_db (isolated)
+├─ payment_service_db (isolated)
+└─ inventory_service_db (isolated)
+```
+
+### Connection Strings:
+
+**Shared Database Services:**
+```bash
+# Auth, User, Profile all use SAME connection:
+MONGODB_URI=mongodb://core_services_user:PASSWORD@localhost:27017/core_shared_db?authSource=core_shared_db
+```
+
+**Isolated Database Services:**
+```bash
+# Each service has UNIQUE connection:
+# Order:
+MONGODB_URI=mongodb://order_user:PASSWORD1@localhost:27017/order_service_db?authSource=order_service_db
+
+# Payment:
+MONGODB_URI=mongodb://payment_user:PASSWORD2@localhost:27017/payment_service_db?authSource=payment_service_db
 ```
 
 ---

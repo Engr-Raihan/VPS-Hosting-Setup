@@ -68,7 +68,16 @@ Quick checklist to track your setup progress.
 - [ ] Start Docker services
 - [ ] Verify MongoDB running
 - [ ] Verify RabbitMQ running
-- [ ] Create MongoDB users
+
+### Database Pattern Setup (Choose One or Both):
+
+**Option A: Shared Database (for 3-4 related services)**
+- [ ] Create shared database (e.g., `core_shared_db`)
+- [ ] Create one shared user for all core services
+
+**Option B: Isolated Databases (for business services)**
+- [ ] Create separate database per service
+- [ ] Create unique user per service
 
 ---
 
