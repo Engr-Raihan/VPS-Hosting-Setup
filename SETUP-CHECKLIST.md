@@ -19,8 +19,9 @@ Quick checklist to track your setup progress.
 ### System Update
 - [ ] Connect via SSH
 - [ ] Update packages (`apt update && apt upgrade`)
-- [ ] Install essential tools
-- [ ] Set timezone
+- [ ] Install essential tools (build-essential, curl, git, ca-certificates, gnupg, lsb-release)
+- [ ] Optional: Install wget, vim (if you prefer)
+- [ ] Set timezone (UTC or your local timezone)
 
 ### User Management
 - [ ] Create `appadmin` user

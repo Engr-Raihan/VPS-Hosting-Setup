@@ -108,14 +108,39 @@
 sudo apt update && sudo apt upgrade -y
 
 # Install essential tools
-sudo apt install -y build-essential curl wget git vim software-properties-common apt-transport-https ca-certificates gnupg lsb-release
+# ESSENTIAL (required for Node.js, Git, SSL):
+sudo apt install -y build-essential curl git ca-certificates gnupg lsb-release
 
-# Set timezone
+# OPTIONAL (can install later if needed):
+# wget - Alternative to curl (usually not needed)
+# vim - Text editor (use nano if you prefer, already installed)
+# software-properties-common - For add-apt-repository (not needed here)
+# apt-transport-https - Already included in Ubuntu 24.04
+
+# Set timezone (use your timezone: Asia/Dhaka, America/New_York, etc.)
 sudo timedatectl set-timezone UTC
 
 # Verify
 timedatectl
 ```
+
+**💡 Minimal Installation (if you want bare minimum):**
+```bash
+# Absolutely required for this setup:
+sudo apt install -y build-essential curl git ca-certificates gnupg lsb-release
+```
+
+**What each package does:**
+- `build-essential` - ✅ **Required** - Compiles native Node.js modules (many npm packages need this)
+- `curl` - ✅ **Required** - Downloads Node.js, Docker installation scripts
+- `git` - ✅ **Required** - Clone repositories, deploy code
+- `ca-certificates` - ✅ **Required** - SSL certificates for HTTPS connections
+- `gnupg` - ✅ **Required** - Verify package signatures (security)
+- `lsb-release` - ✅ **Required** - Used by Node.js and Docker installers
+- `wget` - ⚠️ Optional - Alternative to curl (not needed if you have curl)
+- `vim` - ⚠️ Optional - Text editor (nano is already installed, use what you prefer)
+- `software-properties-common` - ⚠️ Optional - Not needed for this setup
+- `apt-transport-https` - ⚠️ Optional - Already included in Ubuntu 24.04
 
 ---
 
