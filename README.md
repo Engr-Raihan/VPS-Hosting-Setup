@@ -1768,9 +1768,11 @@ sudo visudo -f /etc/sudoers.d/attendance-admin
 **Add these lines:**
 
 ```bash
-# Allow attendance-admin to restart ONLY their service
+# Allow attendance-admin to manage ONLY their service
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 restart attendance-system
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 reload attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 stop attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 start attendance-system
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 logs attendance-system*
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 status
 
@@ -1778,28 +1780,99 @@ attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 status
 attendance-admin ALL=(ALL) !ALL
 ```
 
-### Step 5: Setup Git Access
+### Step 5: Setup Git Access (Choose One Method)
+
+**🎯 RECOMMENDED: Option 1 - Deploy Key (Single Repo Access Only)**
+
+**Best for: Restricting access to ONLY attendance-system repo**
 
 ```bash
 # As attendance-admin
 sudo su - attendance-admin
 
-# Generate SSH key for GitHub/GitLab
-ssh-keygen -t ed25519 -C "attendance-admin@yourcompany.com" -f ~/.ssh/github_key
+# Generate deploy key (read-only by default)
+ssh-keygen -t ed25519 -C "deploy-attendance-system" -f ~/.ssh/deploy_attendance
 
-# Display public key (add to GitHub/GitLab)
-cat ~/.ssh/github_key.pub
+# Display public key
+cat ~/.ssh/deploy_attendance.pub
+# Copy this key
 
-# Configure Git
-git config --global user.name "Attendance Admin"
-git config --global user.email "manager@yourcompany.com"
-
-# Setup SSH config for Git
+# Configure Git to use deploy key
 nano ~/.ssh/config
 ```
 
-**Add:**
+**Add to SSH config:**
+```
+Host github.com-attendance
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/deploy_attendance
+    IdentitiesOnly yes
+```
 
+```bash
+chmod 600 ~/.ssh/config
+
+# Configure Git
+git config --global user.name "Attendance Service"
+git config --global user.email "attendance@yourcompany.com"
+
+exit
+```
+
+**On GitHub (as company admin):**
+1. Go to: `https://github.com/your-company/attendance-system`
+2. Settings → Deploy keys → Add deploy key
+3. Title: `VPS Production Server`
+4. Paste the public key from `deploy_attendance.pub`
+5. ✅ Check "Allow write access" (if needed for deployments)
+6. Click "Add key"
+
+**Clone using deploy key:**
+```bash
+sudo su - attendance-admin
+cd /opt/apps/attendance-system
+
+# Use custom host from SSH config
+git clone git@github.com-attendance:your-company/attendance-system.git .
+
+# Test
+git pull
+
+exit
+```
+
+**✅ Benefits:**
+- Only has access to attendance-system repo
+- Cannot access other company repos
+- Can be revoked anytime from GitHub settings
+- Read-only by default (safer)
+
+---
+
+**Option 2 - Manager's Personal GitHub Account**
+
+**Best for: Manager owns/maintains the service independently**
+
+**Setup:**
+```bash
+# Manager creates fork or separate repo on their GitHub
+# Repository: github.com/manager-username/attendance-system
+
+# As attendance-admin (on VPS)
+sudo su - attendance-admin
+
+# Generate SSH key
+ssh-keygen -t ed25519 -C "manager@company.com" -f ~/.ssh/github_key
+
+cat ~/.ssh/github_key.pub
+# Manager adds this to their GitHub account: Settings → SSH Keys
+
+# Configure SSH
+nano ~/.ssh/config
+```
+
+**SSH config:**
 ```
 Host github.com
     HostName github.com
@@ -1810,13 +1883,99 @@ Host github.com
 ```bash
 chmod 600 ~/.ssh/config
 
-# Test Git access
+# Configure Git
+git config --global user.name "Manager Name"
+git config --global user.email "manager@company.com"
+
+# Clone from manager's GitHub
 cd /opt/apps/attendance-system
-git remote -v
-git pull
+git clone git@github.com:manager-username/attendance-system.git .
 
 exit
 ```
+
+**✅ Benefits:**
+- Manager has full control
+- No company GitHub access needed
+- Manager can manage their own repo
+- Independent deployment
+
+**⚠️ Considerations:**
+- Manager leaves = Need to transfer repo
+- Code is outside company GitHub org
+- May complicate code ownership
+
+---
+
+**Option 3 - Personal Access Token (PAT)**
+
+**Best for: HTTPS access with limited scope**
+
+**On GitHub (as manager or admin):**
+1. Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Generate new token
+3. Name: `Attendance System VPS`
+4. Scopes: Select only `repo` (or just `public_repo` if public)
+5. Click "Generate token"
+6. Copy token immediately (won't see again!)
+
+**On VPS:**
+```bash
+sudo su - attendance-admin
+cd /opt/apps/attendance-system
+
+# Clone using HTTPS with token
+git clone https://TOKEN@github.com/your-company/attendance-system.git .
+
+# Configure Git credential storage
+git config --global credential.helper store
+
+# Or use environment variable
+echo "export GH_TOKEN=your_token_here" >> ~/.bashrc
+source ~/.bashrc
+
+exit
+```
+
+**✅ Benefits:**
+- Easy to revoke
+- Can limit permissions
+- HTTPS (no SSH setup needed)
+
+**⚠️ Considerations:**
+- Token stored on server
+- Need to rotate periodically
+
+---
+
+**🎯 Decision Guide:**
+
+| Scenario | Best Option |
+|----------|-------------|
+| Manager works for company, needs limited access | **Deploy Key** (Option 1) ⭐ |
+| Manager is contractor, maintains independently | **Manager's GitHub** (Option 2) |
+| Simple HTTPS setup, easy revocation | **PAT Token** (Option 3) |
+| Need write access for multiple people | **GitHub Team** with specific repo access |
+
+---
+
+**🔒 Security Best Practices:**
+
+**With Deploy Key (Recommended):**
+```bash
+# Each service gets its own deploy key
+/opt/apps/attendance-system → deploy_attendance key → Only attendance repo
+/opt/apps/inventory-system → deploy_inventory key → Only inventory repo
+/opt/apps/payment-system → deploy_payment key → Only payment repo
+```
+
+**Advantages:**
+- ✅ Breached server = Only one repo compromised
+- ✅ Easy to revoke one without affecting others
+- ✅ Clear audit trail per service
+- ✅ Read-only by default
+
+---
 
 ### Step 6: Create Helper Scripts for Manager
 

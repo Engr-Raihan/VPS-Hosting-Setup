@@ -281,7 +281,10 @@ sudo visudo -f /etc/sudoers.d/attendance-admin
 ```
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 restart attendance-system
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 reload attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 stop attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 start attendance-system
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 logs attendance-system*
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 status
 ```
 
 **Manager commands:**

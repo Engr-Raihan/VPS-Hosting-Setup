@@ -34,16 +34,28 @@ nano ~/.ssh/authorized_keys  # Paste public key
 chmod 600 ~/.ssh/authorized_keys
 exit
 
-# 4. Setup Git SSH key
+# 4. Setup Git Access - RECOMMENDED: Deploy Key (Single Repo Only)
 sudo su - attendance-admin
-ssh-keygen -t ed25519 -C "attendance@company.com" -f ~/.ssh/github_key
-cat ~/.ssh/github_key.pub  # Add to GitHub/GitLab
-echo 'Host github.com
+# Generate deploy key for attendance-system repo ONLY
+ssh-keygen -t ed25519 -C "deploy-attendance" -f ~/.ssh/deploy_attendance
+cat ~/.ssh/deploy_attendance.pub  # Add to GitHub repo as Deploy Key
+
+# Configure SSH to use deploy key
+echo 'Host github.com-attendance
     HostName github.com
     User git
-    IdentityFile ~/.ssh/github_key' > ~/.ssh/config
+    IdentityFile ~/.ssh/deploy_attendance
+    IdentitiesOnly yes' > ~/.ssh/config
 chmod 600 ~/.ssh/config
+
+# Configure Git
+git config --global user.name "Attendance Service"
+git config --global user.email "attendance@company.com"
 exit
+
+# On GitHub: Repo Settings → Deploy keys → Add deploy key
+# Paste public key, set title "VPS Production"
+# This key can ONLY access attendance-system repo!
 
 # 5. Configure sudo permissions
 sudo visudo -f /etc/sudoers.d/attendance-admin
@@ -53,6 +65,8 @@ sudo visudo -f /etc/sudoers.d/attendance-admin
 ```
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 restart attendance-system
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 reload attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 stop attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 start attendance-system
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 logs attendance-system*
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 status
 ```
