@@ -1625,10 +1625,10 @@ If you want to allow someone (e.g., manager, developer) to manage only ONE servi
 
 ```bash
 # Create user for attendance-system manager
+# This will prompt for password - set a strong one
 sudo adduser attendance-admin
-
-# Set password (they'll use this for SSH initially)
-sudo passwd attendance-admin
+# Enter password when prompted
+# Skip optional info (press Enter for all)
 
 # DO NOT add to sudo group (no admin privileges)
 ```

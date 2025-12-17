@@ -9,9 +9,9 @@
 ### For Service: attendance-system
 
 ```bash
-# 1. Create user
+# 1. Create user (will prompt for password - set a strong one)
 sudo adduser attendance-admin
-sudo passwd attendance-admin
+# Enter password, skip optional info (press Enter)
 
 # 2. Create directories and set permissions
 sudo mkdir -p /opt/apps/attendance-system
