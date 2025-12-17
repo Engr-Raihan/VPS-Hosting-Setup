@@ -1635,15 +1635,36 @@ sudo adduser attendance-admin
 
 ### Step 2: Setup SSH Keys for New User
 
-**On manager's local machine:**
+**On manager's local machine (Windows):**
+
+```powershell
+# Generate SSH key (PowerShell or CMD)
+ssh-keygen -t ed25519 -C "manager@company.com"
+
+# Just press Enter for all prompts (uses defaults):
+# - File location: Press Enter (uses default)
+# - Passphrase: Press Enter twice (no passphrase) or type one for security
+
+# Copy public key to clipboard
+type $env:USERPROFILE\.ssh\id_ed25519.pub | clip
+
+# Or view and copy manually
+type $env:USERPROFILE\.ssh\id_ed25519.pub
+```
+
+**On manager's local machine (Linux/Mac):**
 
 ```bash
 # Generate SSH key
 ssh-keygen -t ed25519 -C "manager@company.com"
-# Save as: ~/.ssh/id_ed25519_attendance
 
-# Copy public key
-cat ~/.ssh/id_ed25519_attendance.pub
+# Press Enter for all prompts (uses defaults)
+
+# Copy public key to clipboard (Mac)
+cat ~/.ssh/id_ed25519.pub | pbcopy
+
+# Or view and copy manually (Linux/Mac)
+cat ~/.ssh/id_ed25519.pub
 ```
 
 **On VPS (as appadmin):**

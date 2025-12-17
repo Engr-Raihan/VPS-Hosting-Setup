@@ -19,7 +19,15 @@ sudo mkdir -p /var/log/apps/attendance-system
 sudo chown -R attendance-admin:attendance-admin /opt/apps/attendance-system
 sudo chown -R attendance-admin:attendance-admin /var/log/apps/attendance-system
 
-# 3. Setup SSH keys (manager sends their public key)
+# 3. Manager generates SSH key (on their local machine)
+# Windows (PowerShell):
+#   ssh-keygen -t ed25519 -C "manager@company.com"  # Press Enter for all prompts
+#   type $env:USERPROFILE\.ssh\id_ed25519.pub | clip  # Copies to clipboard
+# Linux/Mac:
+#   ssh-keygen -t ed25519 -C "manager@company.com"  # Press Enter for all prompts
+#   cat ~/.ssh/id_ed25519.pub  # View public key
+
+# 4. Add manager's public key to server
 sudo su - attendance-admin
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 nano ~/.ssh/authorized_keys  # Paste public key
