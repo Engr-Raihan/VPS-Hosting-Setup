@@ -1703,15 +1703,111 @@ sudo chown -R attendance-admin:attendance-admin /var/log/apps/attendance-system
 ls -la /opt/apps/ | grep attendance
 ```
 
-### Step 4: Configure PM2 for Restricted User
+### Step 4: Configure Sudo Permissions
 
-**Option A: Separate PM2 instance for this user (Recommended)**
+**Configure sudo to allow attendance-admin to manage ONLY their service:**
+
+```bash
+# As appadmin, create sudoers file for attendance-admin
+sudo visudo -f /etc/sudoers.d/attendance-admin
+```
+
+**Add these lines:**
+
+```bash
+# Allow attendance-admin to manage ONLY their service
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 restart attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 reload attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 stop attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 start attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 logs attendance-system*
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 status
+
+# Note: Only the above commands are allowed. All other sudo commands are automatically denied.
+```
+
+**Save and exit** (Ctrl+X, Y, Enter in nano)
+
+**Test the configuration:**
+```bash
+# Switch to attendance-admin
+sudo su - attendance-admin
+
+# Try allowed command (should work)
+sudo -u appadmin pm2 status
+
+# Try forbidden command (should fail)
+sudo apt update
+# Error: Sorry, user attendance-admin is not allowed to execute...
+
+exit
+```
+
+**⚠️ Security Note about `pm2 status`:**
+
+The `pm2 status` command shows information about ALL services. While attendance-admin **cannot control** other services, they **can see** information about them (names, ports, status).
+
+**For maximum security (external contractors):**
+```bash
+# Edit sudoers again
+sudo visudo -f /etc/sudoers.d/attendance-admin
+
+# Remove the pm2 status line:
+# attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 status
+
+# Keep only these:
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 restart attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 reload attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 stop attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 start attendance-system
+attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 logs attendance-system*
+```
+
+---
+
+### Step 5: Configure PM2 for Restricted User
+
+**🎯 RECOMMENDED: Option A - Shared PM2 with Sudo Access (Simpler)**
+
+**Skip separate PM2 installation! Just use the system-wide PM2 installed by appadmin.**
+
+```bash
+# PM2 is already installed system-wide by appadmin
+# attendance-admin will use it via sudo commands
+
+# NO need to install PM2 separately!
+# We configured sudo permissions in Step 4
+```
+
+**attendance-admin will manage their service with:**
+```bash
+sudo -u appadmin pm2 restart attendance-system
+sudo -u appadmin pm2 reload attendance-system
+sudo -u appadmin pm2 stop attendance-system
+sudo -u appadmin pm2 start attendance-system
+sudo -u appadmin pm2 logs attendance-system
+sudo -u appadmin pm2 status
+```
+
+**Benefits:**
+- ✅ Single PM2 instance (saves ~50MB RAM)
+- ✅ All services visible in one `pm2 list`
+- ✅ Easier monitoring for admin
+- ✅ Simpler setup
+
+**Continue to Step 6 →**
+
+---
+
+**Option B: Separate PM2 Instance (Advanced - Only if Needed)**
+
+**⚠️ Only use this if you need complete PM2 isolation**
 
 ```bash
 # As attendance-admin user
 sudo su - attendance-admin
 
-# Install PM2 for this user
+# Install PM2 for this user only (creates separate instance)
 npm install -g pm2
 
 # Create ecosystem file for this service only
@@ -1758,29 +1854,14 @@ pm2 save
 exit
 ```
 
-**Option B: Allow restart of specific PM2 service via sudo (Simpler)**
+**With Option B (separate PM2):**
+- attendance-admin runs: `pm2 restart attendance-system` (no sudo needed)
+- But creates separate PM2 daemon
+- Uses more memory (~50MB extra)
 
-```bash
-# As appadmin, configure sudo permissions
-sudo visudo -f /etc/sudoers.d/attendance-admin
-```
+---
 
-**Add these lines:**
-
-```bash
-# Allow attendance-admin to manage ONLY their service
-attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 restart attendance-system
-attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 reload attendance-system
-attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 stop attendance-system
-attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 start attendance-system
-attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 logs attendance-system*
-attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 status
-
-# Prevent all other sudo commands
-attendance-admin ALL=(ALL) !ALL
-```
-
-### Step 5: Setup Git Access (Choose One Method)
+### Step 6: Setup Git Access (Choose One Method)
 
 **🎯 RECOMMENDED: Option 1 - Deploy Key (Single Repo Access Only)**
 
@@ -1977,7 +2058,7 @@ exit
 
 ---
 
-### Step 6: Create Helper Scripts for Manager
+### Step 7: Create Helper Scripts for Manager
 
 ```bash
 # As appadmin, create helper scripts
@@ -2075,7 +2156,7 @@ sudo chmod +x /home/attendance-admin/*.sh
 sudo chown attendance-admin:attendance-admin /home/attendance-admin/*.sh
 ```
 
-### Step 7: Restrict SSH Access (Optional but Recommended)
+### Step 8: Restrict SSH Access (Optional but Recommended)
 
 ```bash
 # Edit SSH config
@@ -2108,7 +2189,7 @@ sudo sshd -t
 sudo systemctl restart ssh
 ```
 
-### Step 8: Test Restricted Access
+### Step 9: Test Restricted Access
 
 **From manager's machine:**
 

@@ -69,6 +69,9 @@ attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 stop attendance-system
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 start attendance-system
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 logs attendance-system*
 attendance-admin ALL=(appadmin) NOPASSWD: /usr/bin/pm2 status
+
+# Save and exit (Ctrl+X, Y, Enter)
+# Only the above commands are allowed, all others are automatically denied
 ```
 
 ```bash
