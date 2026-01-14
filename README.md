@@ -452,12 +452,25 @@ Each has its own database + user inside the same MongoDB instance
 
 ```bash
 # Create directories
-sudo mkdir -p /opt/databases/{mongodb,rabbitmq}
-sudo mkdir -p /opt/backups/{mongodb,rabbitmq}
-sudo chown -R appadmin:appadmin /opt/databases /opt/backups
+sudo mkdir -p /opt/databases/{mongodb,rabbitmq,postgresql}
+sudo mkdir -p /opt/backups/{mongodb,rabbitmq,postgresql}
+
+# Create subdirectories for each service
+sudo mkdir -p /opt/databases/mongodb/{data,logs}
+sudo mkdir -p /opt/databases/rabbitmq/{data,logs}
+sudo mkdir -p /opt/databases/postgresql/{data,logs,config}
+
+# Set ownership (user will own the directories)
+sudo chown -R $USER:$USER /opt/databases /opt/backups
+
+# Set initial permissions for PostgreSQL log directory
+# PostgreSQL Alpine image typically uses UID 999 or varies, we'll fix it after container starts
+sudo chmod 755 /opt/databases/postgresql/logs
 
 cd /opt/databases
 ```
+
+**💡 Note:** PostgreSQL log directory permissions will be fine-tuned after the container starts. The postgres user in the container needs write access, which we'll set based on the actual UID/GID used by the container.
 
 ### Create Docker Compose Configuration
 
@@ -503,6 +516,22 @@ services:
     networks:
       - backend
 
+  postgresql:
+    image: postgres:16-alpine
+    container_name: postgresql
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"  # Only bind to localhost
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./postgresql/data:/var/lib/postgresql/data
+      - ./postgresql/logs:/var/log/postgresql
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
@@ -521,6 +550,9 @@ nano .env
 MONGO_ROOT_PASSWORD=YOUR_SECURE_MONGODB_PASSWORD_HERE
 RABBIT_USER=admin
 RABBIT_PASSWORD=YOUR_SECURE_RABBITMQ_PASSWORD_HERE
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=YOUR_SECURE_POSTGRESQL_PASSWORD_HERE
+POSTGRES_DB=postgres
 ```
 
 **Secure and start:**
@@ -532,10 +564,69 @@ chmod 600 .env
 # Start services
 docker compose up -d
 
-# Verify
+# Fix PostgreSQL log directory permissions (postgres user needs write access)
+# Get the actual UID/GID from the container
+if docker ps | grep -q postgresql; then
+  POSTGRES_UID=$(docker exec postgresql id -u postgres 2>/dev/null || echo "999")
+  POSTGRES_GID=$(docker exec postgresql id -g postgres 2>/dev/null || echo "999")
+  sudo chown -R ${POSTGRES_UID}:${POSTGRES_GID} /opt/databases/postgresql/logs
+  sudo chmod 755 /opt/databases/postgresql/logs
+  echo "✅ PostgreSQL log directory permissions set (UID: ${POSTGRES_UID}, GID: ${POSTGRES_GID})"
+else
+  # If container is not running, use data directory ownership (most reliable)
+  if [ -d "/opt/databases/postgresql/data" ]; then
+    EXISTING_UID=$(stat -c '%u' /opt/databases/postgresql/data 2>/dev/null || echo "999")
+    EXISTING_GID=$(stat -c '%g' /opt/databases/postgresql/data 2>/dev/null || echo "999")
+    sudo chown -R ${EXISTING_UID}:${EXISTING_GID} /opt/databases/postgresql/logs
+    sudo chmod 755 /opt/databases/postgresql/logs
+    echo "✅ PostgreSQL log directory permissions set from data directory (UID: ${EXISTING_UID}, GID: ${EXISTING_GID})"
+  fi
+fi
+
+# Restart PostgreSQL to apply permissions
+docker compose restart postgresql
+
+# Verify all services are running
 docker compose ps
-docker logs mongodb
-docker logs rabbitmq
+
+# Check logs for each service
+docker logs mongodb | tail -10
+docker logs rabbitmq | tail -10
+docker logs postgresql | tail -10
+
+# Test PostgreSQL connection
+docker exec postgresql psql -U postgres -d postgres -c "SELECT version();" 2>/dev/null && echo "✅ PostgreSQL is running" || echo "⚠️ PostgreSQL connection failed - check logs"
+
+# Test MongoDB connection
+docker exec mongodb mongosh --eval "db.version()" --quiet 2>/dev/null && echo "✅ MongoDB is running" || echo "⚠️ MongoDB connection failed - check logs"
+
+# Test RabbitMQ connection
+docker exec rabbitmq rabbitmq-diagnostics ping 2>/dev/null && echo "✅ RabbitMQ is running" || echo "⚠️ RabbitMQ connection failed - check logs"
+```
+
+**⚠️ If PostgreSQL is restarting continuously:**
+
+```bash
+# Check for permission errors
+docker logs postgresql | grep -i "permission denied"
+
+# Fix: Stop container first (can't exec into restarting container)
+cd /opt/databases
+docker compose stop postgresql
+
+# Get UID from existing data directory (most reliable)
+EXISTING_UID=$(stat -c '%u' /opt/databases/postgresql/data 2>/dev/null || echo "999")
+EXISTING_GID=$(stat -c '%g' /opt/databases/postgresql/data 2>/dev/null || echo "999")
+sudo chown -R ${EXISTING_UID}:${EXISTING_GID} /opt/databases/postgresql/logs
+sudo chmod 755 /opt/databases/postgresql/logs
+
+# Start again
+docker compose up -d postgresql
+
+# Wait and verify
+sleep 5
+docker compose ps
+docker logs postgresql | tail -20
 ```
 
 ### Configure MongoDB
@@ -716,6 +807,7 @@ for i in {1..4}; do echo "Password $i:"; openssl rand -base64 32; echo ""; done
 ```
 
 ---
+
 
 ## Step 10: Setup Application Infrastructure
 
