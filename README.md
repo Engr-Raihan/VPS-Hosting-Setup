@@ -815,7 +815,7 @@ for i in {1..4}; do echo "Password $i:"; openssl rand -base64 32; echo ""; done
 # Create directories
 sudo mkdir -p /opt/apps
 sudo mkdir -p /var/log/apps
-sudo chown -R appadmin:appadmin /opt/apps /var/log/apps
+sudo chown -R $USER:$USER /opt/apps /var/log/apps
 
 # Create PM2 ecosystem file
 cd /opt/apps
@@ -982,7 +982,7 @@ npm ci --production
 
 # Create log directory
 sudo mkdir -p /var/log/apps/auth-service
-sudo chown -R appadmin:appadmin /var/log/apps/auth-service
+sudo chown -R $USER:$USER /var/log/apps/auth-service
 
 # Start with PM2
 cd /opt/apps
